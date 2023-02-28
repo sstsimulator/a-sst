@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 #
-# Copyright 2009-2020 NTESS. Under the terms
+# Copyright 2009-2023 NTESS. Under the terms
 # of Contract DE-NA0003525 with NTESS, the U.S.
 # Government retains certain rights in this software.
 #
-# Copyright (c) 2009-2020, NTESS
+# Copyright (c) 2009-2023, NTESS
 # All rights reserved.
 #
 # This file is part of the SST software package. For license
@@ -12,6 +12,7 @@
 # distribution.
 import sst
 import sys
+import os
 from sst.merlin.base import *
 from sst.merlin.topology import *
 from sst.merlin.endpoint import *
@@ -58,53 +59,71 @@ if __name__ == "__main__":
     total_nodes = topo.getNumNodes()
 
     # Now define the endpoints
-
-    # Create an "empty" job of the remaining ranks.
-    #empty_job = EmptyJob(num_jobs + 1, rem_ranks)
-
-    if (len(sys.argv) < 3):
-        print("Too few args - Args are nranks and input_size")
+    if (len(sys.argv) < 5):
+        print(f"Too few args ({sys.argv})")
+        print("--model-options=\"<nodes> <threads_per_rank> <scale> <version>\"")
         sys.exit(1)
-    nnodes = int(sys.argv[1])
-    sz = int(sys.argv[2])
 
-    # The 32 is the number of MPI ranks per node
-    print('total_nodes : {}'.format(total_nodes)) # 2688
-    ranks_per_node = 1
+    # `nnodes` is the number of nodes that will be simulated
+    # `threads_per_rank` is the number of threads each node will run
+    #   Some models only support 1 thread currently
+    # `sz` is the input to the BFS ISB, it is the R-MAT scale of the matrix
+    # This sdl support using a number of models, specified by the `version` parameter:
+    #    exponential: Computation and communication use an exponential model, except for constant valued message size models
+    #    polynomial:  Computation and communication use a 4th order polynomial model
+    #    trace:       Trace data collected from rank 0 of the program is fed into each simulated rank
+
+    nnodes = int(sys.argv[1])
+    threads_per_rank = int(sys.argv[2])
+    sz = int(sys.argv[3])
+    version = sys.argv[4]
+
+    if threads_per_rank != 1 and version != 'polynomial' or threads_per_rank > 4:
+        print('Polynomial models support 1-4 threads. Other modesl support 1 thread.')
+
+    if (nnodes == 1):
+        print("Error: Ember is not designed to run a single node")
+        sys.exit(1)
+
+    if (int(int(nnodes**.5)**2)!=nnodes):
+        print("Error: BFS requires a square number of nodes")
+        sys.exit(1)
+
+    if (nnodes > total_nodes):
+        print(f"The topology only has {total_nodes} nodes, but {nnodes} were requested")
+
+    print(f"Running with nodes={nnodes}, threads_per_rank={threads_per_rank}, sz={sz}")
+
+    ranks_per_node = 1 # To be added in the future
     ep = EmberMPIJob(1, nnodes, ranks_per_node)
     ep.network_interface = networkif
-    # define the motifs to run
 
-    if (len(sys.argv) < 3):
-        print("Too few args - Args are nranks and input_size")
-        sys.exit(1)
-    nnodes = sys.argv[1]
-    sz = sys.argv[2]
-
+    # Add motifs to the simulation
     ep.addMotif("Init")
-    ep.addMotif("BFS sz={} seed=12 threads=4 comm_model=msg_size_2.model comp_model=exec_time_2.model".format(sz))
+
+    if version == "exponential":
+        msg_model  = 'models/msg_exp.model'
+        exec_model = 'models/exec_exp.model'
+        ep.addMotif(f"BFS sz={sz} seed=12 nodes={nnodes} threads={threads_per_rank} msg_model={msg_model} exec_model={exec_model}")
+
+    elif version == "polynomial":
+        msg_model  = 'models/msg_poly.model'
+        exec_model = 'models/exec_poly.model'
+        ep.addMotif(f"BFS sz={sz} seed=12 nodes={nnodes} threads={threads_per_rank} msg_model={msg_model} exec_model={exec_model}")
+
+    elif version == "trace":
+        msg_model  = f'models/trace/bfs_msgtrace_{nnodes}-{nnodes}-{threads_per_rank}-{sz}-0.txt'
+        exec_model = f'models/trace/bfs_exectrace_{nnodes}-{nnodes}-{threads_per_rank}-{sz}-0.txt'
+        ep.addMotif(f"BFS sz={sz} seed=12 nodes={nnodes} threads={threads_per_rank} msg_model={msg_model} exec_model={exec_model}")
+
+    else:
+        print("ERROR: Version not recognized.")
+        sys.exit(1)
+
     ep.addMotif("Fini")
-
-    # Allocate jobs to system
-
-    # First, randomly allocate the empty job (this will spread out the
-    # other jobs across the whole machine
-    #system.allocateNodes(empty_job,"random",15)
 
     system = System()
     system.setTopology(topo)
-
     system.allocateNodes(ep,"linear")
-
     system.build()
-
-    #sst.enableStatisticsForComponentType("merlin.linkcontrol",["send_bit_count","recv_bit_count"],{"type":"sst.AccumulatorStatistic","rate":"20us"},False)
-    #sst.enableStatisticsForComponentType("merlin.hr_router",["send_bit_count"],{"type":"sst.AccumulatorStatistic","rate":"0us"},False)
-    #sst.setStatisticLoadLevel(9)
-
-    #sst.setStatisticOutput("sst.statOutputCSV");
-    #sst.setStatisticOutputOptions({
-    #    "filepath" : "output/stats" + suffix + ".csv",
-    #    "separator" : ", "
-    #})
 
