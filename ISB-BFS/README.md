@@ -2,6 +2,8 @@
 
 This directoroy contains code to help you use the Ember BFS motif. The motif is in the devel branch of sst-elements.
 
+A presentation detailing how data was collected and processed for these models is located in this directory, [here](https://github.com/sstsimulator/a-sst/blob/main/ISB-BFS/BFS-Ember-Slides.pdf).
+
 ## Data collection
 
 The models in this directory were trained on data collected from Cori. We collected data on `16-24` nodes, on `4-64` ranks, for `1-4` threads.
