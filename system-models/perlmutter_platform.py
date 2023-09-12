@@ -67,7 +67,7 @@ platdef.addParamSet("firefly.ctrl", {
     'waitanyStateDelay_ps' : 20000,
     
     'pqs.verboseMask': 1,
-    'pqs.verboseLevel': 10,
+    'pqs.verboseLevel': 0,
 
 
 
