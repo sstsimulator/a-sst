@@ -25,7 +25,7 @@ platdef.addParamSet("router",{
     # "xbar_arb" : "merlin.xbar_arb_lru",
 })
 
-platdef.addParamSet("firefly.basic_nic", {
+platdef.addParamSet("nic", {
     "nic2host_lat" : "350ns",
     "rxMatchDelay_ns" : 350,
     "txDelay_ns" : 350,
